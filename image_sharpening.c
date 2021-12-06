@@ -1,6 +1,6 @@
 #include<stdio.h>
 #include<stdlib.h>
-
+#include <string.h>
 typedef struct {
      unsigned char red,green,blue;
 } PPMPixel;
@@ -10,15 +10,13 @@ typedef struct {
      PPMPixel *data;
 } PPMImage;
 
-#define CREATOR "RPFELGUEIRAS"
 #define RGB_COMPONENT_COLOR 255
-
 static PPMImage *readPPM(const char *filename)
 {
          char buff[16];
          PPMImage *img;
          FILE *fp;
-         int c, rgb_comp_color;
+         int  rgb_comp_color;
          //open PPM file for reading
          fp = fopen(filename, "rb");
          if (!fp) {
@@ -29,7 +27,6 @@ static PPMImage *readPPM(const char *filename)
          //read image format
          if (!fgets(buff, sizeof(buff), fp)) {
               perror(filename);
-              exit(1);
          }
 
     //check the image format
@@ -37,7 +34,6 @@ static PPMImage *readPPM(const char *filename)
          fprintf(stderr, "Invalid image format (must be 'P6')\n");
          exit(1);
     }
-
     //alloc memory form image
     img = (PPMImage *)malloc(sizeof(PPMImage));
     if (!img) {
@@ -45,15 +41,6 @@ static PPMImage *readPPM(const char *filename)
          exit(1);
     }
 
-    //check for comments
-    c = getc(fp);
-    while (c == '#') {
-    while (getc(fp) != '\n') ;
-         c = getc(fp);
-    }
-
-    ungetc(c, fp);
-    //read image size information
     if (fscanf(fp, "%d %d", &img->x, &img->y) != 2) {
          fprintf(stderr, "Invalid image size (error loading '%s')\n", filename);
          exit(1);
@@ -89,52 +76,58 @@ static PPMImage *readPPM(const char *filename)
     fclose(fp);
     return img;
 }
+
 void writePPM(const char *filename, PPMImage *img)
 {
     FILE *fp;
-    //open file for output
     fp = fopen(filename, "wb");
     if (!fp) {
          fprintf(stderr, "Unable to open file '%s'\n", filename);
          exit(1);
     }
 
-    //write the header file
-    //image format
     fprintf(fp, "P6\n");
-
-    //comments
-    fprintf(fp, "# Created by %s\n",CREATOR);
-
-    //image size
     fprintf(fp, "%d %d\n",img->x,img->y);
-
-    // rgb component depth
     fprintf(fp, "%d\n",RGB_COMPONENT_COLOR);
-
-    // pixel data
     fwrite(img->data, 3 * img->x, img->y, fp);
     fclose(fp);
 }
 
-void changeColorPPM(PPMImage *img)
-{
-    int i;
+void applyKernel(PPMImage * img,PPMImage* img2){
+    int i,j;
     if(img){
+        for(i = 0;i < img->x-2;i++){
+            for(j = 0;j < img->y-2;j++)
+            {
+                int rand = i * img->y;
+                int poz = rand + j + 1;
+                PPMPixel buff[10];
+                memcpy(buff,&img->data[rand + j],3 * sizeof(PPMPixel));
+                rand = rand + img->y;
+                memcpy(&buff[3],&img->data[rand + j],3 * sizeof(PPMPixel));
+                rand = rand + img->y;
+                memcpy(&buff[6],&img->data[rand + j],3 * sizeof(PPMPixel));
 
-         for(i=0;i<img->x*img->y;i++){
-              img->data[i].red=RGB_COMPONENT_COLOR-img->data[i].red;
-              img->data[i].green=RGB_COMPONENT_COLOR-img->data[i].green;
-              img->data[i].blue=RGB_COMPONENT_COLOR-img->data[i].blue;
-         }
+                img2->data[poz].blue = buff[1].blue * (-1) + buff[3].blue * (-1) + buff[4].blue * 5 + buff[5].blue * (-1) +  buff[7].blue * (-1);
+                //img2->data[poz].blue = img->data[poz].blue > 255 ? 255: (img->data[poz].blue < 0 ? 0 : img->data[poz].blue);
+                
+                img2->data[poz].green = buff[1].green * (-1) + buff[3].green * (-1) + buff[4].green * 5 + buff[5].green * (-1) +  buff[7].green * (-1);
+               // img2->data[poz].green = img->data[poz].green > 255 ? 255: (img->data[poz].green < 0 ? 0 : img->data[poz].green);
+                
+                img2->data[poz].red = buff[1].red * (-1) + buff[3].red * (-1) + buff[4].red * 5 + buff[5].red * (-1) +  buff[7].red * (-1);
+               // img2->data[poz].red = img->data[poz].red > 255 ? 255: (img->data[poz].red < 0 ? 0 : img->data[poz].red);
+            }
+        }
     }
 }
 
 int main(){
     PPMImage *image;
-    image = readPPM("can_bottom.ppm");
-    changeColorPPM(image);
-    writePPM("can_bottom2.ppm",image);
+    PPMImage *image2;
+    image = readPPM("lazar.ppm");
+    image2 = readPPM("lazar.ppm");
+    applyKernel(image,image2);
+    writePPM("lazarand.ppm",image2);
     printf("Press any key...");
     getchar();
 }
