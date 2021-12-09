@@ -138,6 +138,8 @@ Image* apply_kernel(Image * img,Image* img2){
                 img2->data[poz].green = pix->green;
                 img2->data[poz].blue = pix->blue;
 
+               
+               
             }
         }
         return img2;
@@ -180,27 +182,34 @@ void write_Histogram(unsigned short int* histogram,char* filename){
     fclose(fp);
 }
 
-void print(Image* img){
+void print(Image* img,Image* img2){
      for(int i = 0;i < img->y;i++){
           for(int j = 0;j < img->x;j++){
-                    printf("\t%d",img->data[i*img->x + j].red);
+               if(img->data[i*img->x + j].green != img2->data[i*img->x + j].green)
+                    printf("\t%d :\t%d",img->data[i*img->x + j].red,img2->data[i*img->x + j].red);
+                    // printf("\t[%d]:\t%d",i*img->x + j,img->data[i*img->x + j].red);
           }
-          printf("\n");
+          // printf("\n");
      }
-     printf("\n");
+     // printf("\n");
 }
 
-int main(int argc,char** argv){ 
+
+int main(int argc,char* argv[]){ 
     Image *image;
     Image *image2;
+    Image *image3;
     if(argc != 2){
 		fprintf(stderr,"Usage: %s <file_name>",argv[0]);
 	}
 
     image = read_file(argv[1]);
     image2 = read_file(argv[1]);
-    
+    image3 = read_file("corect_output.ppm");
+
     image2 = apply_kernel(image,image2);
+
+    print(image2,image3);
     unsigned short int* histogram = compute_grayscale_histogram(image2);
     
     write_Histogram(histogram,"output.txt");
