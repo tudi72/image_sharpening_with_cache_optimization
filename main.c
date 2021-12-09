@@ -7,110 +7,78 @@
 #include <math.h>
 typedef struct {
      unsigned char red,green,blue;
-} PPMPixel;
+} Pixel;
 
 typedef struct {
      int x, y;
-     PPMPixel *data;
-} PPMImage;
+     Pixel *data;
+} Image;
 
 
-#define RGB_COMPONENT_COLOR 255
-static PPMImage *readPPM(const char *filename)
+Image* read_file(const char *filename)
 {
-         char buff[16];
-         PPMImage *img;
          FILE *fp;
-         int c, rgb_comp_color;
-         //open PPM file for reading
+         char buff[16];
+         Image *image = (Image *)malloc(sizeof(Image));;
+         int rgb;
+
          fp = fopen(filename, "rb");
          if (!fp) {
-              fprintf(stderr, "Unable to open file '%s'\n", filename);
+              perror("Cannot open file");
               exit(1);
          }
 
-         //read image format
-         if (!fgets(buff, sizeof(buff), fp)) {
+         if (!fgets(buff, sizeof(buff), fp)) { // we always read a P6 format 
               perror(filename);
               exit(1);
          }
+          if (fscanf(fp, "%d %d", &image->x, &image->y) != 2) {
+               perror("Wrong sizes for width and height");
+               exit(1);
+          }
 
-    //check the image format
-    if (buff[0] != 'P' || buff[1] != '6') {
-         fprintf(stderr, "Invalid image format (must be 'P6')\n");
-         exit(1);
-    }
+          if (fscanf(fp, "%d", &rgb) != 1) {
+               perror("Cannot read rgb component");
+               exit(1);
+          }
 
-    //alloc memory form image
-    img = (PPMImage *)malloc(sizeof(PPMImage));
-    if (!img) {
-         fprintf(stderr, "Unable to allocate memory\n");
-         exit(1);
-    }
+          if (rgb!= 255) {
+               perror("Invalid rgb component -> should be 255");
+               exit(1);
+          }
 
-    //check for comments
-    c = getc(fp);
-    while (c == '#') {
-    while (getc(fp) != '\n') ;
-         c = getc(fp);
-    }
+          image->data = (Pixel*)malloc(image->x * image->y * sizeof(Pixel));
 
-    ungetc(c, fp);
-    //read image size information
-    if (fscanf(fp, "%d %d", &img->x, &img->y) != 2) {
-         fprintf(stderr, "Invalid image size (error loading '%s')\n", filename);
-         exit(1);
-    }
+          //we need to get rid of spaces before reading the pixels 
+          while (fgetc(fp) != '\n') ;
 
-    //read rgb component
-    if (fscanf(fp, "%d", &rgb_comp_color) != 1) {
-         fprintf(stderr, "Invalid rgb component (error loading '%s')\n", filename);
-         exit(1);
-    }
+          if (fread(image->data, 3 * image->x, image->y, fp) != image->y) {
+               perror("Cannot read width*height pixels correctly");
+               exit(1);
+          }
 
-    //check rgb component depth
-    if (rgb_comp_color!= RGB_COMPONENT_COLOR) {
-         fprintf(stderr, "'%s' does not have 8-bits components\n", filename);
-         exit(1);
-    }
-
-    while (fgetc(fp) != '\n') ;
-    //memory allocation for pixel data
-    img->data = (PPMPixel*)malloc(img->x * img->y * sizeof(PPMPixel));
-
-    if (!img) {
-         fprintf(stderr, "Unable to allocate memory\n");
-         exit(1);
-    }
-
-    //read pixel data from file
-    if (fread(img->data, 3 * img->x, img->y, fp) != img->y) {
-         fprintf(stderr, "Error loading image '%s'\n", filename);
-         exit(1);
-    }
-
-    fclose(fp);
-    return img;
+          fclose(fp);
+    return image;
 }
 
-void writePPM(const char *filename, PPMImage *img)
+void write_file(const char *filename, Image *img)
 {
     FILE *fp;
     fp = fopen(filename, "wb");
     if (!fp) {
-         fprintf(stderr, "Unable to open file '%s'\n", filename);
+         perror("Cannot write in ppm file");
          exit(1);
     }
 
     fprintf(fp, "P6\n");
     fprintf(fp, "%d %d\n",img->x,img->y);
-    fprintf(fp, "%d\n",RGB_COMPONENT_COLOR);
+    fprintf(fp, "%d\n",255);
     fwrite(img->data, 3 * img->x, img->y, fp);
     fclose(fp);
 }
 
-PPMPixel* compute_pixel(PPMPixel* buff){
-    PPMPixel* pix = (PPMPixel*)malloc(sizeof(PPMPixel));
+Pixel* compute_pixel(Pixel* buff){
+    Pixel* pix = (Pixel*)malloc(sizeof(Pixel));
     int a = ((int)buff[0].blue * (-1));
     int b = ((int)buff[1].blue * (-1));
     int c = ((int)buff[2].blue * (5));
@@ -145,26 +113,26 @@ PPMPixel* compute_pixel(PPMPixel* buff){
 
 }
 
-PPMImage* applyKernel(PPMImage * img,PPMImage* img2){
+Image* apply_kernel(Image * img,Image* img2){
     int i,j;
     if(img){
         for(i = 1;i < img->y-1;i++){
             for(j = 1;j < img->x-1;j++)
             {
-                PPMPixel* buff = (PPMPixel*)calloc(5,sizeof(PPMPixel));
+                Pixel* buff = (Pixel*)calloc(5,sizeof(Pixel));
                 //copying the row with respect to zero values in the kernel 
 
                 //copying the first row corresponding to the kernel
-                memcpy(buff,&img->data[(i-1)*img->x + j],sizeof(PPMPixel));
+                memcpy(buff,&img->data[(i-1)*img->x + j],sizeof(Pixel));
 
                 // copying the second row coresponding to the kernel
-                memcpy(&buff[1],&img->data[i * img->x + j - 1],3 * sizeof(PPMPixel));
+                memcpy(&buff[1],&img->data[i * img->x + j - 1],3 * sizeof(Pixel));
                 
                 // copying the third row coresponding to the kernel 
-                memcpy(&buff[4],&img->data[(i+1) * img->x + j],sizeof(PPMPixel));
+                memcpy(&buff[4],&img->data[(i+1) * img->x + j],sizeof(Pixel));
                 
                 // compute the middle pixel represented by poz 
-                PPMPixel* pix = compute_pixel(buff);
+                Pixel* pix = compute_pixel(buff);
                 int poz = i * img->x + j;
                 img2->data[poz].red = pix->red;
                 img2->data[poz].green = pix->green;
@@ -177,11 +145,11 @@ PPMImage* applyKernel(PPMImage * img,PPMImage* img2){
     return NULL;
 }
 
-unsigned short int* compute_grayscale_histogram(PPMImage* img)
+unsigned short int* compute_grayscale_histogram(Image* img)
 {
 
-    unsigned char* grey = (char*)calloc(sizeof(char)*img->x ,img->y);
-    unsigned short int* histogram = (int*)calloc(5,sizeof(unsigned short int));
+    unsigned char* grey = (unsigned char*)calloc(sizeof(char)*img->x ,img->y);
+    unsigned short int* histogram = (unsigned short int*)calloc(5,sizeof(unsigned short int));
     int i;
     if(img){
         for(i = 0;i < img->x*img->y;i++){
@@ -195,13 +163,13 @@ unsigned short int* compute_grayscale_histogram(PPMImage* img)
             
         }
     }
-     for(int i = 0;i < 5;i++){
-          printf(" %d ",histogram[i]);
-     }
+     // for(int i = 0;i < 5;i++){
+     //      printf(" %d ",histogram[i]);
+     // }
     return histogram;
 }
 
-void writeHistogram(unsigned short int* histogram,char* filename){
+void write_Histogram(unsigned short int* histogram,char* filename){
     FILE *fp;
     fp = fopen(filename, "w");
     if (!fp) {
@@ -212,9 +180,9 @@ void writeHistogram(unsigned short int* histogram,char* filename){
     fclose(fp);
 }
 
-void print(PPMImage* img){
-     for(int i = 0;i < 5;i++){
-          for(int j = 0;j < 5;j++){
+void print(Image* img){
+     for(int i = 0;i < img->y;i++){
+          for(int j = 0;j < img->x;j++){
                     printf("\t%d",img->data[i*img->x + j].red);
           }
           printf("\n");
@@ -222,19 +190,19 @@ void print(PPMImage* img){
      printf("\n");
 }
 
-int main(int argc,char** argv){
-    PPMImage *image;
-    PPMImage *image2;
+int main(int argc,char** argv){ 
+    Image *image;
+    Image *image2;
     if(argc != 2){
 		fprintf(stderr,"Usage: %s <file_name>",argv[0]);
 	}
 
-    image = readPPM(argv[1]);
-    image2 = readPPM(argv[1]);
+    image = read_file(argv[1]);
+    image2 = read_file(argv[1]);
     
-    image2 = applyKernel(image,image2);
+    image2 = apply_kernel(image,image2);
     unsigned short int* histogram = compute_grayscale_histogram(image2);
     
-    writeHistogram(histogram,"output.txt");
-    writePPM("output.ppm",image2);
+    write_Histogram(histogram,"output.txt");
+    write_file("output.ppm",image2);
 } 
