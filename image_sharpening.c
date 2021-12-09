@@ -1,7 +1,10 @@
-<<<<<<< HEAD
-#include<stdio.h>
-#include<stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <string.h>
+#include <math.h>
 typedef struct {
      unsigned char red,green,blue;
 } PPMPixel;
@@ -11,13 +14,14 @@ typedef struct {
      PPMPixel *data;
 } PPMImage;
 
+
 #define RGB_COMPONENT_COLOR 255
 static PPMImage *readPPM(const char *filename)
 {
          char buff[16];
          PPMImage *img;
          FILE *fp;
-         int  rgb_comp_color;
+         int c, rgb_comp_color;
          //open PPM file for reading
          fp = fopen(filename, "rb");
          if (!fp) {
@@ -28,6 +32,7 @@ static PPMImage *readPPM(const char *filename)
          //read image format
          if (!fgets(buff, sizeof(buff), fp)) {
               perror(filename);
+              exit(1);
          }
 
     //check the image format
@@ -35,6 +40,7 @@ static PPMImage *readPPM(const char *filename)
          fprintf(stderr, "Invalid image format (must be 'P6')\n");
          exit(1);
     }
+
     //alloc memory form image
     img = (PPMImage *)malloc(sizeof(PPMImage));
     if (!img) {
@@ -42,6 +48,15 @@ static PPMImage *readPPM(const char *filename)
          exit(1);
     }
 
+    //check for comments
+    c = getc(fp);
+    while (c == '#') {
+    while (getc(fp) != '\n') ;
+         c = getc(fp);
+    }
+
+    ungetc(c, fp);
+    //read image size information
     if (fscanf(fp, "%d %d", &img->x, &img->y) != 2) {
          fprintf(stderr, "Invalid image size (error loading '%s')\n", filename);
          exit(1);
@@ -94,102 +109,132 @@ void writePPM(const char *filename, PPMImage *img)
     fclose(fp);
 }
 
-void applyKernel(PPMImage * img,PPMImage* img2){
+PPMPixel* compute_pixel(PPMPixel* buff){
+    PPMPixel* pix = (PPMPixel*)malloc(sizeof(PPMPixel));
+    int a = ((int)buff[0].blue * (-1));
+    int b = ((int)buff[1].blue * (-1));
+    int c = ((int)buff[2].blue * (5));
+    int d = ((int)buff[3].blue * (-1));
+    int e = ((int)buff[4].blue * (-1));
+    int blue = a + b + c + d + e; 
+    blue = (blue > 255)? 255: blue;
+    blue = (blue < 0)? 0 : blue;
+    pix->blue = blue;
+
+    a = ((int)buff[0].green * (-1));
+    b = ((int)buff[1].green * (-1));
+    c = ((int)buff[2].green * (5));
+    d = ((int)buff[3].green * (-1));
+    e = ((int)buff[4].green * (-1));
+    int green = a + b + c + d + e; 
+    green = (green > 255) ? 255: green;
+    green = (green < 0)? 0 : green;
+    pix->green = green;
+
+    
+    a = ((int)buff[0].red * (-1));
+    b = ((int)buff[1].red * (-1));
+    c = ((int)buff[2].red * (5));
+    d = ((int)buff[3].red * (-1));
+    e = ((int)buff[4].red * (-1));
+    int red = a + b + c + d + e; 
+    red = (red > 255) ? 255: red;
+    red = (red < 0) ? 0 : red;
+    pix->red = red;
+    return pix;
+
+}
+
+PPMImage* applyKernel(PPMImage * img,PPMImage* img2){
     int i,j;
     if(img){
-        for(i = 0;i < img->x-2;i++){
-            for(j = 0;j < img->y-2;j++)
+        for(i = 1;i < img->y-1;i++){
+            for(j = 1;j < img->x-1;j++)
             {
-                int rand = i * img->y;
-                int poz = rand + j + 1;
-                PPMPixel buff[10];
-                memcpy(buff,&img->data[rand + j],3 * sizeof(PPMPixel));
-                rand = rand + img->y;
-                memcpy(&buff[3],&img->data[rand + j],3 * sizeof(PPMPixel));
-                rand = rand + img->y;
-                memcpy(&buff[6],&img->data[rand + j],3 * sizeof(PPMPixel));
+                PPMPixel* buff = (PPMPixel*)calloc(5,sizeof(PPMPixel));
+                //copying the row with respect to zero values in the kernel 
 
-                img2->data[poz].blue = buff[1].blue * (-1) + buff[3].blue * (-1) + buff[4].blue * 5 + buff[5].blue * (-1) +  buff[7].blue * (-1);
-                //img2->data[poz].blue = img->data[poz].blue > 255 ? 255: (img->data[poz].blue < 0 ? 0 : img->data[poz].blue);
+                //copying the first row corresponding to the kernel
+                memcpy(buff,&img->data[(i-1)*img->x + j],sizeof(PPMPixel));
+
+                // copying the second row coresponding to the kernel
+                memcpy(&buff[1],&img->data[i * img->x + j - 1],3 * sizeof(PPMPixel));
                 
-                img2->data[poz].green = buff[1].green * (-1) + buff[3].green * (-1) + buff[4].green * 5 + buff[5].green * (-1) +  buff[7].green * (-1);
-               // img2->data[poz].green = img->data[poz].green > 255 ? 255: (img->data[poz].green < 0 ? 0 : img->data[poz].green);
+                // copying the third row coresponding to the kernel 
+                memcpy(&buff[4],&img->data[(i+1) * img->x + j],sizeof(PPMPixel));
                 
-                img2->data[poz].red = buff[1].red * (-1) + buff[3].red * (-1) + buff[4].red * 5 + buff[5].red * (-1) +  buff[7].red * (-1);
-               // img2->data[poz].red = img->data[poz].red > 255 ? 255: (img->data[poz].red < 0 ? 0 : img->data[poz].red);
+                // compute the middle pixel represented by poz 
+                PPMPixel* pix = compute_pixel(buff);
+                int poz = i * img->x + j;
+                img2->data[poz].red = pix->red;
+                img2->data[poz].green = pix->green;
+                img2->data[poz].blue = pix->blue;
+
             }
         }
+        return img2;
     }
+    return NULL;
 }
 
-int main(){
+unsigned short int* compute_grayscale_histogram(PPMImage* img)
+{
+
+    unsigned char* grey = (char*)calloc(sizeof(char)*img->x ,img->y);
+    unsigned short int* histogram = (int*)calloc(5,sizeof(unsigned short int));
+    int i;
+    if(img){
+        for(i = 0;i < img->x*img->y;i++){
+            //round(0.2126*R + 0.7152*G + 0.0722*B)
+            grey[i] = round( (double)(img->data[i].blue * 0.0722) + (double)(img->data[i].green *0.7152) + (double)(img->data[i].red * 0.2126)); 
+            if(grey[i] < 51) histogram[0]++;
+            else if(grey[i] < 102) histogram[1]++;
+            else if(grey[i] < 153) histogram[2]++;
+            else if(grey[i] < 204) histogram[3]++;
+            else if(grey[i] < 256) histogram[4]++;
+            
+        }
+    }
+     for(int i = 0;i < 5;i++){
+          printf(" %d ",histogram[i]);
+     }
+    return histogram;
+}
+
+void writeHistogram(unsigned short int* histogram,char* filename){
+    FILE *fp;
+    fp = fopen(filename, "w");
+    if (!fp) {
+         fprintf(stderr, "Unable to open file '%s'\n", filename);
+         exit(1);
+    }
+    fprintf(fp,"%d %d %d %d %d",histogram[0],histogram[1],histogram[2],histogram[3],histogram[4]);
+    fclose(fp);
+}
+
+void print(PPMImage* img){
+     for(int i = 0;i < 5;i++){
+          for(int j = 0;j < 5;j++){
+                    printf("\t%d",img->data[i*img->x + j].red);
+          }
+          printf("\n");
+     }
+     printf("\n");
+}
+
+int main(int argc,char** argv){
     PPMImage *image;
     PPMImage *image2;
-    image = readPPM("lazar.ppm");
-    image2 = readPPM("lazar.ppm");
-    applyKernel(image,image2);
-    writePPM("lazarand.ppm",image2);
-    printf("Press any key...");
-    getchar();
-=======
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-typedef struct{
-    unsigned char red,green,blue;
-}PPMPixel;
+    if(argc != 2){
+		fprintf(stderr,"Usage: %s <file_name>",argv[0]);
+	}
 
-typedef struct{
-    int x,y;
-    PPMPixel *data;
-}PPMImage;
-
-double filter[10] ={
-     0,-1, 0,
-    -1, 5,-1,
-     0,-1, 0
-};
-
-void split_pixel(int RGB,int* blue,int* red,int* green)
-{
-    *blue = (RGB >> 16) & 0xFF;
-    *green = (RGB >> 8) & 0xFF;
-    *red = RGB & 0xFF;
-}
-
-void open_image(FILE* f){
-    f = fopen("/home/1465846/Documents/Tudi-master/image_sharpening_with_cache_optimization/reindeer.ppm","rb+");
-    if (f== NULL){
-            perror("cannot open image");
-            exit(1);
-    }
-
-    fseek(f,16,SEEK_SET); // skip image format, we already know it's P6
-
-}
-
-void allocate_image(PPMImage** img){
-    *img = (PPMImage*)malloc(sizeof(PPMImage));
-    (*img)->data = (PPMPixel*)malloc(sizeof(PPMPixel));
-    if(!(*img)){
-        perror("Cannot allocate enough memory for image");
-    }
-}
-
-void read_image(FILE*f , PPMImage* img){
-    if(fscanf(f,"%d %d",&img->x,&img->y) != 2){
-        perror("Cannot read width and weight correctly ");
-    }
-}
-
-int main(int argc,char *argv[]){
-
-    FILE* f = NULL;
-    PPMImage* img = NULL;
-    open_image(f);
-    img = (PPMImage*)malloc(sizeof(PPMImage));
-    read_image(f,img);
-    printf("size of image is %lu\n",sizeof(img));
-    return 0;
->>>>>>> aeb15174d226b10eca9251bc39f111f8180fac92
-}
+    image = readPPM(argv[1]);
+    image2 = readPPM(argv[1]);
+    
+    image2 = applyKernel(image,image2);
+    unsigned short int* histogram = compute_grayscale_histogram(image2);
+    
+    writeHistogram(histogram,"output.txt");
+    writePPM("output.ppm",image2);
+} 
