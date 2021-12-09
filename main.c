@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <math.h>
+
 typedef struct {
      unsigned char red,green,blue;
 } Pixel;
@@ -71,7 +72,7 @@ void write_file(const char *filename, Image *img)
     }
 
     fprintf(fp, "P6\n");
-    fprintf(fp, "%d %d\n",img->x,img->y);
+    fprintf(fp, "%d\n%d\n",img->x,img->y);
     fprintf(fp, "%d\n",255);
     fwrite(img->data, 3 * img->x, img->y, fp);
     fclose(fp);
@@ -137,9 +138,8 @@ Image* apply_kernel(Image * img,Image* img2){
                 img2->data[poz].red = pix->red;
                 img2->data[poz].green = pix->green;
                 img2->data[poz].blue = pix->blue;
-
-               
-               
+                free(pix);     
+                free(buff);          
             }
         }
         return img2;
@@ -150,12 +150,11 @@ Image* apply_kernel(Image * img,Image* img2){
 unsigned short int* compute_grayscale_histogram(Image* img)
 {
 
-    unsigned char* grey = (unsigned char*)calloc(sizeof(char)*img->x ,img->y);
+    unsigned char* grey = (unsigned char*)calloc(sizeof(unsigned char)*img->x ,img->y);
     unsigned short int* histogram = (unsigned short int*)calloc(5,sizeof(unsigned short int));
     int i;
     if(img){
         for(i = 0;i < img->x*img->y;i++){
-            //round(0.2126*R + 0.7152*G + 0.0722*B)
             grey[i] = round( (double)(img->data[i].blue * 0.0722) + (double)(img->data[i].green *0.7152) + (double)(img->data[i].red * 0.2126)); 
             if(grey[i] < 51) histogram[0]++;
             else if(grey[i] < 102) histogram[1]++;
@@ -165,13 +164,11 @@ unsigned short int* compute_grayscale_histogram(Image* img)
             
         }
     }
-     // for(int i = 0;i < 5;i++){
-     //      printf(" %d ",histogram[i]);
-     // }
+    free(grey);
     return histogram;
 }
 
-void write_Histogram(unsigned short int* histogram,char* filename){
+void write_Histogram(unsigned short int* histogram,const char* filename){
     FILE *fp;
     fp = fopen(filename, "w");
     if (!fp) {
@@ -182,50 +179,26 @@ void write_Histogram(unsigned short int* histogram,char* filename){
     fclose(fp);
 }
 
-void print(Image* img,Image* img2){
-     for(int i = 0;i < img->y;i++){
-          for(int j = 0;j < img->x;j++){
-               if(img->data[i*img->x + j].green != img2->data[i*img->x + j].green)
-                    printf("\t%d :\t%d",img->data[i*img->x + j].red,img2->data[i*img->x + j].red);
-                    // printf("\t[%d]:\t%d",i*img->x + j,img->data[i*img->x + j].red);
-          }
-          // printf("\n");
-     }
-     // printf("\n");
-}
-
-void compare_outputs(Image* img,Image* img2){
-    for(int i = 0;i < img->y;i++){
-        for(int j = 0;j < img->x;j++){
-            if(img->data[i*img->x + j].red != img2->data[i*img->x + j].red)
-                    printf("\t%d",img->data[i*img->x + j].red);
-
-        }
-    }
-}
-
 int main(int argc,char* argv[]){ 
-    Image *image;
-    Image *image2;
-    Image *image3;
-    if(argc != 2){
-		fprintf(stderr,"Usage: %s <file_name>",argv[0]);
-	}
-    // if(argc != 2){
-	// 	fprintf(stderr,"Usage: %s <file_name>",argv[0]);
-	// }
+     Image *image;
+     Image *image2;
+     unsigned short int* histogram;
+     if(argc != 2){
+          fprintf(stderr,"Usage: %s <file_name>",argv[0]);
+     }
 
-    image = read_file(argv[1]);
-    image2 = read_file(argv[1]);
-    image3 = read_file("corect_output.ppm");
 
-    image2 = apply_kernel(image,image2);
+     image = read_file(argv[1]);
+     image2 = read_file(argv[1]);
 
-    
-    image2 = apply_kernel(image,image2);
-    compare_outputs(image2,image3);
-    unsigned short int* histogram = compute_grayscale_histogram(image2);
-    
-    write_Histogram(histogram,"output.txt");
-    write_file("output.ppm",image2);
+     image2 = apply_kernel(image,image2);
+     histogram = compute_grayscale_histogram(image2);
+
+     write_Histogram(histogram,"output.txt");
+     write_file("output.ppm",image2);
+     free(image->data);
+     free(image2->data);
+     free(image);
+     free(image2);
+     free(histogram);
 } 
