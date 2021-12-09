@@ -190,17 +190,30 @@ void print(Image* img){
      printf("\n");
 }
 
-int main(int argc,char** argv){ 
+void compare_outputs(Image* img,Image* img2){
+    for(int i = 0;i < img->y;i++){
+        for(int j = 0;j < img->x;j++){
+            if(img->data[i*img->x + j].red != img2->data[i*img->x + j].red)
+                    printf("\t%d",img->data[i*img->x + j].red);
+
+        }
+    }
+}
+
+int main(int argc,char* argv[]){ 
     Image *image;
     Image *image2;
-    if(argc != 2){
-		fprintf(stderr,"Usage: %s <file_name>",argv[0]);
-	}
+    Image *image3;
+    // if(argc != 2){
+	// 	fprintf(stderr,"Usage: %s <file_name>",argv[0]);
+	// }
 
     image = read_file(argv[1]);
     image2 = read_file(argv[1]);
+    image3 = read_file("corect_output.ppm");
     
     image2 = apply_kernel(image,image2);
+    compare_outputs(image,image3);
     unsigned short int* histogram = compute_grayscale_histogram(image2);
     
     write_Histogram(histogram,"output.txt");
